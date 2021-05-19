@@ -428,8 +428,8 @@ module FlatList =
     let fold (folder : 'state -> 'a -> 'state) (state: 'state) (list:FlatList<'a>) =
         check list
         let mutable result = state
-        for i = 0 to length list do
-            result <- folder result list.[i]
+        for item in list do
+            result <- folder result item
         result
     
     let foldBack (folder : 'state -> 'a -> 'state) (list:FlatList<'a>) (state: 'state) =
@@ -442,7 +442,7 @@ module FlatList =
     let reduce (reduction : 'a -> 'a -> 'a) (list:FlatList<'a>) =
         checkEmpty list
         let mutable result = list.[0]
-        for i = 1 to length list do
+        for i = 1 to length list - 1 do
             result <- reduction result list.[i]
         result
     
@@ -453,13 +453,25 @@ module FlatList =
             result <- reduction result list.[i]
         result
 
-    let mapFold (mapping:'State -> 'T -> 'Result * 'State) (state:'State) (list:FlatList<'T>) : 'Result[] * 'State =
+    let mapFold (mapping:'State -> 'T -> 'Result * 'State) (state:'State) (list:FlatList<'T>) =
         check list
-        raise (new System.NotImplementedException())
+        let builder = builderWithLengthOf list
+        let mutable outState = state
+        for item in list do
+            let item, newState = mapping outState item
+            builder.Add item
+            outState <- newState
+        ofBuilder builder, outState
 
-    let mapFoldBack (mapping:'State -> 'T -> 'Result * 'State) (list:FlatList<'T>) (state:'State) : 'Result[] * 'State =
+    let mapFoldBack (mapping:'State -> 'T -> 'Result * 'State) (list:FlatList<'T>) (state:'State) =
         check list
-        raise (new System.NotImplementedException())
+        let builder = builderWithLengthOf list
+        let mutable outState = state
+        for i = length list - 1 downto 0 do
+            let item, newState = mapping outState list.[i]
+            builder.Add item
+            outState <- newState
+        ofBuilder builder, outState
     
     let zip (left:FlatList<_>) (right:FlatList<_>) =
         check left; check right
