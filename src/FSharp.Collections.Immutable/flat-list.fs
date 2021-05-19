@@ -665,7 +665,16 @@ module FlatList =
     let sortByDescending projection = map projection >> sortDescending
 
     let compareWith comparer (left:FlatList<'a>) (right:FlatList<'b>) = zip left right |> skipWhile ((uncurry comparer) >> ((=) 0)) |> head |> (uncurry comparer)
+
+    let tryExactlyOne (list:FlatList<_>) =
+        checkEmpty list
+        if length list > 1 then None else Some list.[0]
     
+    let exactlyOne list = 
+        match tryExactlyOne list with
+            | None -> invalidArg (nameof list) "List contains more than one argument"
+            | Some a -> a
+
     //////////
 
 module ImmutableArray = FlatList
