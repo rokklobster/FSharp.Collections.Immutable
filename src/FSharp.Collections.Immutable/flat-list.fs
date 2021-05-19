@@ -407,7 +407,7 @@ module FlatList =
         check list
         let len = length list
         let rec loop i =
-            if i > len then indexNotFound() else
+            if i = len then indexNotFound() else
             if predicate list.[i] then i  else loop (i + 1)
         loop 0
 
@@ -417,6 +417,14 @@ module FlatList =
             if i < 0 then indexNotFound() else
             if predicate list.[i] then i  else loop (i - 1)
         loop <| length list - 1
+
+    let tryFindIndex predicate list =
+        check list
+        let len = length list
+        let rec loop i =
+            if i = len then None else
+            if predicate list.[i] then Some i  else loop (i + 1)
+        loop <| 0
 
     let tryFindIndexBack predicate list =
         check list
@@ -438,6 +446,16 @@ module FlatList =
         for i = length list - 1 downto 0 do
             result <- folder result list.[i]
         result
+
+    let unfold (generator: 'state -> ('a * 'state) option) state =
+        let builder = FlatListFactory.CreateBuilder()
+        let mutable s = state
+        let mutable step = generator s
+        while step.IsSome do
+            s <- snd step.Value
+            fst step.Value |> builder.Add
+            step <- generator s
+        ofBuilder builder
     
     let reduce (reduction : 'a -> 'a -> 'a) (list:FlatList<'a>) =
         checkEmpty list
@@ -489,8 +507,6 @@ module FlatList =
             builder.Add (left.[i], middle.[i], right.[i])
         ofBuilder builder
 
-    let internal fst (a, _) = a
-    let internal snd (_, a) = a
     let internal fst3 (a, _, _) = a
     let internal snd3 (_, a, _) = a
     let internal thd3 (_, _, a) = a
