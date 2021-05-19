@@ -22,12 +22,15 @@ module FlatList =
 
     let inline empty<'T> : FlatList<_> = FlatListFactory.Create<'T>()
     let inline singleton<'T> (item : 'T) : FlatList<'T> = FlatListFactory.Create<'T> (item)
+    let copy (list:FlatList<_>) = FlatListFactory.CreateRange list
 
     let inline ofSeq source = FlatListFactory.CreateRange source
     let inline ofArray (source : _ array) = FlatListFactory.CreateRange source
+    let inline ofList (source: _ list) = FlatListFactory.CreateRange source
 
     let inline toSeq (flatList: FlatList<_>) = flatList :> seq<_>
     let inline toArray (list : FlatList<_>) = check list; Seq.toArray list
+    let inline toList list = check list; Seq.toList list
 
     ////////// Building //////////
 
@@ -201,18 +204,17 @@ module FlatList =
         for i = 0 to len - 1 do
             f.Invoke(list1.[i], list2.[i])
 
-    let distinctBy projection (list: FlatList<'T>) =
+    let distinct (list: FlatList<'T>) =
         let builder: FlatList<'T>.Builder = builderWith <| length list
-        let set = System.Collections.Generic.HashSet<'Key>(HashIdentity.Structural)
-        let mutable outputIndex = 0
+        let set = System.Collections.Generic.HashSet<'T>(HashIdentity.Structural)
 
-        for i = 0 to length list - 1 do
-            let item = list.[i]
-            if set.Add <| projection item then
-                outputIndex <- outputIndex + 1
+        for item in list do
+            if set.Add item then
                 Builder.add item builder
 
         ofBuilder builder
+    
+    let distinctBy projection (list:FlatList<'a>) = distinct list |> map projection
 
     let map2 mapping list1 list2 =
         checkNotDefault (nameof list1) list1
@@ -433,18 +435,56 @@ module FlatList =
             if predicate list.[i] then Some i  else loop (i - 1)
         loop <| length list - 1
     
-    let fold (folder : 'state -> 'a -> 'state) (state: 'state) (list:FlatList<'a>) =
+    let fold folder (state: 'state) (list:FlatList<'a>) =
         check list
         let mutable result = state
         for item in list do
             result <- folder result item
         result
     
-    let foldBack (folder : 'state -> 'a -> 'state) (list:FlatList<'a>) (state: 'state) =
+    let scan folder (state: 'state) (list:FlatList<'a>) =
+        check list
+        let mutable s = state
+        let result = builderWithLengthOf list
+        result.Add s
+        for item in list do
+            s <- folder s item
+            result.Add s
+        result
+    
+    let fold2 folder (state: 'state) (left:FlatList<'a>) (right:FlatList<'b>) =
+        check left
+        let mutable result = state
+        let len = length left |> max (length right)
+        for i = 0 to len - 1 do
+            result <- folder result left.[i] right.[i]
+        result
+    
+    let foldBack2 folder (left:FlatList<'a>) (right:FlatList<'b>) (state:'state) =
+        check left
+        let mutable result = state
+        let leftLen = length left
+        let rightLen = length right
+        let len = max leftLen rightLen
+        for i = 0 to len - 1 do
+            result <- folder result left.[leftLen - i] right.[rightLen - i]
+        result
+    
+    let foldBack folder (list:FlatList<'a>) (state: 'state) =
         check list
         let mutable result = state
         for i = length list - 1 downto 0 do
             result <- folder result list.[i]
+        result
+    
+    let scanBack folder (list:FlatList<'a>) (state: 'state) =
+        check list
+        let mutable s = state
+        let result = builderWithLengthOf list
+        result.Add s
+        for i = length list - 1 downto 0 do
+            s <- folder s list.[i]
+            result.Add s
         result
 
     let unfold (generator: 'state -> ('a * 'state) option) state =
@@ -457,21 +497,21 @@ module FlatList =
             step <- generator s
         ofBuilder builder
     
-    let reduce (reduction : 'a -> 'a -> 'a) (list:FlatList<'a>) =
+    let reduce reduction (list:FlatList<'a>) =
         checkEmpty list
         let mutable result = list.[0]
         for i = 1 to length list - 1 do
             result <- reduction result list.[i]
         result
     
-    let reduceBack (reduction : 'a -> 'a -> 'a) (list:FlatList<'a>) =
+    let reduceBack reduction (list:FlatList<'a>) =
         checkEmpty list
         let mutable result = list.[list.Length - 1]
         for i = length list - 2 downto 0 do
             result <- reduction result list.[i]
         result
 
-    let mapFold (mapping:'State -> 'T -> 'Result * 'State) (state:'State) (list:FlatList<'T>) =
+    let mapFold mapping (state:'State) (list:FlatList<'T>) =
         check list
         let builder = builderWithLengthOf list
         let mutable outState = state
@@ -481,7 +521,7 @@ module FlatList =
             outState <- newState
         ofBuilder builder, outState
 
-    let mapFoldBack (mapping:'State -> 'T -> 'Result * 'State) (list:FlatList<'T>) (state:'State) =
+    let mapFoldBack mapping (list:FlatList<'T>) (state:'State) =
         check list
         let builder = builderWithLengthOf list
         let mutable outState = state
@@ -511,7 +551,7 @@ module FlatList =
     let internal snd3 (_, a, _) = a
     let internal thd3 (_, _, a) = a
 
-    let unzip (list:FlatList<'a*'b>) =
+    let unzip list =
         let left = builderWithLengthOf list
         let right = builderWithLengthOf list
         for item in list do
@@ -519,7 +559,7 @@ module FlatList =
             right.Add <| snd item
         left, right
 
-    let unzip3 (list:FlatList<'a*'b*'c>) =
+    let unzip3 list =
         let left = builderWithLengthOf list
         let right = builderWithLengthOf list
         let middle = builderWithLengthOf list
@@ -527,7 +567,7 @@ module FlatList =
             left.Add <| fst3 item
             middle.Add <| snd3 item
             right.Add <| thd3 item
-        left, right
+        left, middle, right
 
     let windowed windowSize (list:FlatList<_>) =
         check list
@@ -614,11 +654,18 @@ module FlatList =
     let max (list:FlatList<'a> when 'a : comparison) = check list; reduce max list
     let min (list:FlatList<'a> when 'a : comparison) = check list; reduce min list
 
-    let sortBy projection (list:FlatList<'a>) = list |> map projection |> sort
+    let internal flip f a b = f b a
+    let internal uncurry f (a, b) = f a b
+
+    let sortBy projection = map projection >> sort
     let sortInPlaceBy = sortBy
     let sortInPlaceWith = sortWith
     let sortInPlace = sort
+    let sortDescending (list:FlatList<'a>) = sortWith (flip LanguagePrimitives.GenericComparison) list
+    let sortByDescending projection = map projection >> sortDescending
 
+    let compareWith comparer (left:FlatList<'a>) (right:FlatList<'b>) = zip left right |> skipWhile ((uncurry comparer) >> ((=) 0)) |> head |> (uncurry comparer)
+    
     //////////
 
 module ImmutableArray = FlatList
