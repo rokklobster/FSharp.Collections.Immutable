@@ -488,7 +488,31 @@ module FlatList =
         for i = 0 to len do
             builder.Add (left.[i], middle.[i], right.[i])
         ofBuilder builder
-    
+
+    let internal fst (a, _) = a
+    let internal snd (_, a) = a
+    let internal fst3 (a, _, _) = a
+    let internal snd3 (_, a, _) = a
+    let internal thd3 (_, _, a) = a
+
+    let unzip (list:FlatList<'a*'b>) =
+        let left = builderWithLengthOf list
+        let right = builderWithLengthOf list
+        for item in list do
+            left.Add <| fst item
+            right.Add <| snd item
+        left, right
+
+    let unzip3 (list:FlatList<'a*'b*'c>) =
+        let left = builderWithLengthOf list
+        let right = builderWithLengthOf list
+        let middle = builderWithLengthOf list
+        for item in list do
+            left.Add <| fst3 item
+            middle.Add <| snd3 item
+            right.Add <| thd3 item
+        left, right
+
     let windowed windowSize (list:FlatList<_>) =
         check list
         raise (new System.NotImplementedException())
