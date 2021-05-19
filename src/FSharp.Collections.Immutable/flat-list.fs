@@ -16,6 +16,7 @@ module FlatList =
     let inline internal checkNotDefault argName (list : FlatList<'T>) =
         if list.IsDefault then invalidArg argName "Uninstantiated ImmutableArray/FlatList"
     let inline internal check (list : FlatList<'T>) = checkNotDefault (nameof list) list
+    let inline internal checkEmpty (list : FlatList<_>) = check list; if list.Length = 0 then invalidArg (nameof list) "Source is empty" else ()
 
     ////////// Creating //////////
 
@@ -130,6 +131,8 @@ module FlatList =
     let sortWithComparer (comparer : System.Collections.Generic.IComparer<_>) list = check list; list.Sort(comparer)
     let sortWith comparer list = sortWithComparer (ComparisonIdentity.FromFunction comparer) list
     let sort list = check list; list.Sort()
+
+    let get (list:FlatList<_>) index = list.[index]
 
     ////////// Loop-based //////////
 
@@ -400,6 +403,14 @@ module FlatList =
             if predicate list.[i] then Some list.[i]  else loop (i+1)
         loop <| length list - 1
 
+    let findIndex predicate list =
+        check list
+        let len = length list
+        let rec loop i =
+            if i > len then indexNotFound() else
+            if predicate list.[i] then i  else loop (i + 1)
+        loop 0
+
     let findIndexBack predicate list =
         check list
         let rec loop i =
@@ -413,6 +424,63 @@ module FlatList =
             if i < 0 then None else
             if predicate list.[i] then Some i  else loop (i - 1)
         loop <| length list - 1
+    
+    let fold (folder : 'state -> 'a -> 'state) (state: 'state) (list:FlatList<'a>) =
+        check list
+        let mutable result = state
+        for i = 0 to length list do
+            result <- folder result list.[i]
+        result
+    
+    let foldBack (folder : 'state -> 'a -> 'state) (list:FlatList<'a>) (state: 'state) =
+        check list
+        let mutable result = state
+        for i = length list - 1 downto 0 do
+            result <- folder result list.[i]
+        result
+    
+    let reduce (reduction : 'a -> 'a -> 'a) (list:FlatList<'a>) =
+        checkEmpty list
+        let mutable result = list.[0]
+        for i = 1 to length list do
+            result <- reduction result list.[i]
+        result
+    
+    let reduceBack (reduction : 'a -> 'a -> 'a) (list:FlatList<'a>) =
+        checkEmpty list
+        let mutable result = list.[list.Length - 1]
+        for i = length list - 2 downto 0 do
+            result <- reduction result list.[i]
+        result
+
+    let mapFold (mapping:'State -> 'T -> 'Result * 'State) (state:'State) (list:FlatList<'T>) : 'Result[] * 'State =
+        check list
+        raise (new System.NotImplementedException())
+
+    let mapFoldBack (mapping:'State -> 'T -> 'Result * 'State) (list:FlatList<'T>) (state:'State) : 'Result[] * 'State =
+        check list
+        raise (new System.NotImplementedException())
+    
+    let zip (left:FlatList<_>) (right:FlatList<_>) =
+        check left; check right
+        let len = max (length left) (length right)
+        let builder = builderWith len
+        for i = 0 to len do
+            builder.Add (left.[i], right.[i])
+        ofBuilder builder
+    
+    let zip3 (left:FlatList<_>) (middle:FlatList<_>) (right:FlatList<_>) =
+        check left; check middle; check right
+        let len = length middle |> max (length left) |> max (length right)
+        let builder = builderWith len
+        for i = 0 to len do
+            builder.Add (left.[i], middle.[i], right.[i])
+        ofBuilder builder
+    
+    let windowed windowSize (list:FlatList<_>) =
+        check list
+        raise (new System.NotImplementedException())
+
     // TODO: windowed
 
     ////////// Based on other operations //////////
@@ -468,6 +536,36 @@ module FlatList =
         let builder = toBuilder list
         f builder
         moveFromBuilder builder
+
+    let inline sum ( list:FlatList< ^T > when ^T : (static member (+) : ^T * ^T -> ^T) and ^T : (static member Zero : ^T) ) = 
+        check list
+        reduce (+) list
+
+    let inline sumBy projection ( list:FlatList< ^T > when ^T : (static member (+) : ^T * ^T -> ^T) and ^T : (static member Zero : ^T) ) = 
+        check list
+        list |> map projection |> reduce (+)
+
+    let inline average ( list:FlatList< ^T > when ^T : (static member (+) : ^T * ^T -> ^T) and ^T : (static member DivideByInt : ^T*int -> ^T) and ^T : (static member Zero : ^T) ) =
+        check list
+        let len = length list
+        let sum = sum list
+        LanguagePrimitives.DivideByInt sum len
+
+    let inline averageBy projection ( list:FlatList< ^T > when ^T : (static member (+) : ^T * ^T -> ^T) and ^T : (static member DivideByInt : ^T*int -> ^T) and ^T : (static member Zero : ^T) ) =
+        check list
+        let len = length list
+        let sum = list |> map projection |> sum
+        LanguagePrimitives.DivideByInt sum len
+
+    let maxBy projection (list:FlatList<'a> when 'a : comparison) = check list; list |> map projection |> reduce max
+    let minBy projection (list:FlatList<'a> when 'a : comparison) = check list; list |> map projection |> reduce min
+    let max (list:FlatList<'a> when 'a : comparison) = check list; reduce max list
+    let min (list:FlatList<'a> when 'a : comparison) = check list; reduce min list
+
+    let sortBy projection (list:FlatList<'a>) = list |> map projection |> sort
+    let sortInPlaceBy = sortBy
+    let sortInPlaceWith = sortWith
+    let sortInPlace = sort
 
     //////////
 
