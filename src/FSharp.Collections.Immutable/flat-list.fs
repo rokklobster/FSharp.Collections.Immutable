@@ -469,10 +469,6 @@ module FlatList =
         check left; check middle; check right
         Seq.zip3 left middle right |> ofSeq
 
-    let internal fst3 (a, _, _) = a
-    let internal snd3 (_, a, _) = a
-    let internal thd3 (_, _, a) = a
-
     let unzip list =
         let left = builderWithLengthOf list
         let right = builderWithLengthOf list
@@ -553,9 +549,6 @@ module FlatList =
     let inline sumBy projection ( list:FlatList< ^T > when ^T : (static member (+) : ^T * ^T -> ^T) and ^T : (static member Zero : ^T) ) = 
         list |> raiseOrReturn |> map projection |> reduce (+)
 
-    let inline internal applyOverFuncs f g h x = f (g x) (h x)
-    let inline internal applyOverArgs f g x y = f (g x) (g y)
-
     let inline average ( list:FlatList< ^T > when ^T : (static member (+) : ^T * ^T -> ^T) and ^T : (static member DivideByInt : ^T*int -> ^T) and ^T : (static member Zero : ^T) ) =
         list |> raiseOrReturn |> applyOverFuncs LanguagePrimitives.DivideByInt sum length
 
@@ -566,9 +559,6 @@ module FlatList =
     let minBy projection (list:FlatList<'a> when 'a : comparison) = list |> raiseOrReturn |> map projection |> reduce min
     let max (list:FlatList<'a> when 'a : comparison) = list |> raiseOrReturn |> reduce max
     let min (list:FlatList<'a> when 'a : comparison) = list |> raiseOrReturn |> reduce min
-
-    let internal flip f a b = f b a
-    let internal uncurry f (a, b) = f a b
 
     let sortBy projection = sortWith (applyOverArgs LanguagePrimitives.GenericComparison projection)
     let sortInPlaceBy = sortBy
