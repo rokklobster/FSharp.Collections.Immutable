@@ -17,6 +17,7 @@ module FlatList =
         if list.IsDefault then invalidArg argName "Uninstantiated ImmutableArray/FlatList"
     let inline internal check (list : FlatList<'T>) = checkNotDefault (nameof list) list
     let inline internal checkEmpty (list : FlatList<_>) = check list; if list.Length = 0 then invalidArg (nameof list) "Source is empty" else ()
+    let inline internal raiseOrReturn list = check list; list
 
     ////////// Creating //////////
 
@@ -204,17 +205,17 @@ module FlatList =
         for i = 0 to len - 1 do
             f.Invoke(list1.[i], list2.[i])
 
-    let distinct (list: FlatList<'T>) =
-        let builder: FlatList<'T>.Builder = builderWith <| length list
-        let set = System.Collections.Generic.HashSet<'T>(HashIdentity.Structural)
+    let distinct (list: FlatList<'T>) = list |> System.Collections.Generic.HashSet |> ofSeq
+    
+    let distinctBy projection (list:FlatList<'a>) =
+        let builder = builderWithLengthOf list
+        let set = System.Collections.Generic.HashSet<'key>(HashIdentity.Structural)
 
         for item in list do
-            if set.Add item then
-                Builder.add item builder
-
+            if set.Add <| projection item then
+                builder.Add item
+        
         ofBuilder builder
-    
-    let distinctBy projection (list:FlatList<'a>) = distinct list |> map projection
 
     let map2 mapping list1 list2 =
         checkNotDefault (nameof list1) list1
@@ -405,13 +406,7 @@ module FlatList =
             if predicate list.[i] then Some list.[i]  else loop (i+1)
         loop <| length list - 1
 
-    let findIndex predicate list =
-        check list
-        let len = length list
-        let rec loop i =
-            if i = len then indexNotFound() else
-            if predicate list.[i] then i  else loop (i + 1)
-        loop 0
+    let findIndex predicate = raiseOrReturn >> Seq.findIndex predicate
 
     let findIndexBack predicate list =
         check list
@@ -420,13 +415,7 @@ module FlatList =
             if predicate list.[i] then i  else loop (i - 1)
         loop <| length list - 1
 
-    let tryFindIndex predicate list =
-        check list
-        let len = length list
-        let rec loop i =
-            if i = len then None else
-            if predicate list.[i] then Some i  else loop (i + 1)
-        loop <| 0
+    let tryFindIndex predicate = raiseOrReturn >> Seq.tryFindIndex predicate
 
     let tryFindIndexBack predicate list =
         check list
@@ -435,117 +424,50 @@ module FlatList =
             if predicate list.[i] then Some i  else loop (i - 1)
         loop <| length list - 1
     
-    let fold folder (state: 'state) (list:FlatList<'a>) =
-        check list
-        let mutable result = state
-        for item in list do
-            result <- folder result item
-        result
+    let fold folder (state: 'state) = raiseOrReturn >> Seq.fold folder state
     
-    let scan folder (state: 'state) (list:FlatList<'a>) =
-        check list
-        let mutable s = state
-        let result = builderWithLengthOf list
-        result.Add s
-        for item in list do
-            s <- folder s item
-            result.Add s
-        result
+    let scan folder (state: 'state) = raiseOrReturn >> Seq.scan folder state >> ofSeq
     
     let fold2 folder (state: 'state) (left:FlatList<'a>) (right:FlatList<'b>) =
-        check left
-        let mutable result = state
-        let len = length left |> max (length right)
-        for i = 0 to len - 1 do
-            result <- folder result left.[i] right.[i]
-        result
+        check left; check right
+        Seq.fold2 folder state left right
     
     let foldBack2 folder (left:FlatList<'a>) (right:FlatList<'b>) (state:'state) =
-        check left
-        let mutable result = state
-        let leftLen = length left
-        let rightLen = length right
-        let len = max leftLen rightLen
-        for i = 0 to len - 1 do
-            result <- folder result left.[leftLen - i] right.[rightLen - i]
-        result
+        check left; check right
+        Seq.foldBack2 folder left right state
     
     let foldBack folder (list:FlatList<'a>) (state: 'state) =
         check list
-        let mutable result = state
-        for i = length list - 1 downto 0 do
-            result <- folder result list.[i]
-        result
+        Seq.foldBack folder list state
     
-    let scanBack folder (list:FlatList<'a>) (state: 'state) =
+    let scanBack folder (list:FlatList<'a>) (state:'state) =
         check list
-        let mutable s = state
-        let result = builderWithLengthOf list
-        result.Add s
-        for i = length list - 1 downto 0 do
-            s <- folder s list.[i]
-            result.Add s
-        result
+        Seq.scanBack folder list state |> ofSeq
 
     let unfold (generator: 'state -> ('a * 'state) option) state =
-        let builder = FlatListFactory.CreateBuilder()
-        let mutable s = state
-        let mutable step = generator s
-        while step.IsSome do
-            s <- snd step.Value
-            fst step.Value |> builder.Add
-            step <- generator s
-        ofBuilder builder
+        Seq.unfold generator state |> ofSeq
     
-    let reduce reduction (list:FlatList<'a>) =
-        checkEmpty list
-        let mutable result = list.[0]
-        for i = 1 to length list - 1 do
-            result <- reduction result list.[i]
-        result
+    let reduce reduction = raiseOrReturn >> Seq.reduce reduction
     
-    let reduceBack reduction (list:FlatList<'a>) =
-        checkEmpty list
-        let mutable result = list.[list.Length - 1]
-        for i = length list - 2 downto 0 do
-            result <- reduction result list.[i]
-        result
+    let reduceBack reduction = raiseOrReturn >> Seq.reduceBack reduction
 
     let mapFold mapping (state:'State) (list:FlatList<'T>) =
         check list
-        let builder = builderWithLengthOf list
-        let mutable outState = state
-        for item in list do
-            let item, newState = mapping outState item
-            builder.Add item
-            outState <- newState
-        ofBuilder builder, outState
+        let (items, s) = Seq.mapFold mapping state list
+        ofSeq items, s
 
     let mapFoldBack mapping (list:FlatList<'T>) (state:'State) =
         check list
-        let builder = builderWithLengthOf list
-        let mutable outState = state
-        for i = length list - 1 downto 0 do
-            let item, newState = mapping outState list.[i]
-            builder.Add item
-            outState <- newState
-        ofBuilder builder, outState
+        let (i, s) = Seq.mapFoldBack mapping list state
+        ofSeq i, s
     
     let zip (left:FlatList<_>) (right:FlatList<_>) =
         check left; check right
-        let len = max (length left) (length right)
-        let builder = builderWith len
-        for i = 0 to len do
-            builder.Add (left.[i], right.[i])
-        ofBuilder builder
+        Seq.zip left right |> ofSeq
     
     let zip3 (left:FlatList<_>) (middle:FlatList<_>) (right:FlatList<_>) =
         check left; check middle; check right
-        let len = length middle |> max (length left) |> max (length right)
-        let builder = builderWith len
-        for i = 0 to len do
-            builder.Add (left.[i], middle.[i], right.[i])
-        ofBuilder builder
+        Seq.zip3 left middle right |> ofSeq
 
     let internal fst3 (a, _, _) = a
     let internal snd3 (_, a, _) = a
@@ -569,11 +491,7 @@ module FlatList =
             right.Add <| thd3 item
         left, middle, right
 
-    let windowed windowSize (list:FlatList<_>) =
-        check list
-        raise (new System.NotImplementedException())
-
-    // TODO: windowed
+    let windowed windowSize = raiseOrReturn >> Seq.windowed windowSize >> Seq.map ofSeq >> ofSeq
 
     ////////// Based on other operations //////////
 
@@ -630,29 +548,23 @@ module FlatList =
         moveFromBuilder builder
 
     let inline sum ( list:FlatList< ^T > when ^T : (static member (+) : ^T * ^T -> ^T) and ^T : (static member Zero : ^T) ) = 
-        check list
-        reduce (+) list
+        list |> raiseOrReturn |> reduce (+)
 
     let inline sumBy projection ( list:FlatList< ^T > when ^T : (static member (+) : ^T * ^T -> ^T) and ^T : (static member Zero : ^T) ) = 
-        check list
-        list |> map projection |> reduce (+)
+        list |> raiseOrReturn |> map projection |> reduce (+)
+
+    let internal over f g h x = f (g x) (h x)
 
     let inline average ( list:FlatList< ^T > when ^T : (static member (+) : ^T * ^T -> ^T) and ^T : (static member DivideByInt : ^T*int -> ^T) and ^T : (static member Zero : ^T) ) =
-        check list
-        let len = length list
-        let sum = sum list
-        LanguagePrimitives.DivideByInt sum len
+        list |> raiseOrReturn |> over LanguagePrimitives.DivideByInt sum length
 
     let inline averageBy projection ( list:FlatList< ^T > when ^T : (static member (+) : ^T * ^T -> ^T) and ^T : (static member DivideByInt : ^T*int -> ^T) and ^T : (static member Zero : ^T) ) =
-        check list
-        let len = length list
-        let sum = list |> map projection |> sum
-        LanguagePrimitives.DivideByInt sum len
+        list |> raiseOrReturn |> over LanguagePrimitives.DivideByInt (map projection >> sum) length
 
-    let maxBy projection (list:FlatList<'a> when 'a : comparison) = check list; list |> map projection |> reduce max
-    let minBy projection (list:FlatList<'a> when 'a : comparison) = check list; list |> map projection |> reduce min
-    let max (list:FlatList<'a> when 'a : comparison) = check list; reduce max list
-    let min (list:FlatList<'a> when 'a : comparison) = check list; reduce min list
+    let maxBy projection (list:FlatList<'a> when 'a : comparison) = list |> raiseOrReturn |> map projection |> reduce max
+    let minBy projection (list:FlatList<'a> when 'a : comparison) = list |> raiseOrReturn |> map projection |> reduce min
+    let max (list:FlatList<'a> when 'a : comparison) = list |> raiseOrReturn |> reduce max
+    let min (list:FlatList<'a> when 'a : comparison) = list |> raiseOrReturn |> reduce min
 
     let internal flip f a b = f b a
     let internal uncurry f (a, b) = f a b
@@ -666,14 +578,9 @@ module FlatList =
 
     let compareWith comparer (left:FlatList<'a>) (right:FlatList<'b>) = zip left right |> skipWhile ((uncurry comparer) >> ((=) 0)) |> head |> (uncurry comparer)
 
-    let tryExactlyOne (list:FlatList<_>) =
-        checkEmpty list
-        if length list > 1 then None else Some list.[0]
+    let tryExactlyOne = Seq.tryExactlyOne
     
-    let exactlyOne list = 
-        match tryExactlyOne list with
-            | None -> invalidArg (nameof list) "List contains more than one argument"
-            | Some a -> a
+    let exactlyOne = Seq.exactlyOne
 
     //////////
 
