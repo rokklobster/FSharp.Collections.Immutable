@@ -561,9 +561,6 @@ module FlatList =
     let min (list:FlatList<'a> when 'a : comparison) = list |> raiseOrReturn |> reduce min
 
     let sortBy projection = sortWith (applyOverArgs LanguagePrimitives.GenericComparison projection)
-    let sortInPlaceBy = sortBy
-    let sortInPlaceWith = sortWith
-    let sortInPlace = sort
     let sortDescending (list:FlatList<'a>) = sortWith (flip LanguagePrimitives.GenericComparison) list
     let sortByDescending projection = sortWith (flip (applyOverArgs LanguagePrimitives.GenericComparison projection))
 
