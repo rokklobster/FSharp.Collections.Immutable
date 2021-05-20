@@ -149,8 +149,6 @@ module FlatList =
             builder.Add <| initializer i
         moveFromBuilder builder
 
-    let zeroCreate<'a> count = init count (fun _ -> Unchecked.defaultof<'a>)
-
     let rec private concatAddLengths (arrs: FlatList<FlatList<_>>) i acc =
         if i >= length arrs then acc
         else concatAddLengths arrs (i+1) (acc + arrs.[i].Length)
@@ -209,15 +207,7 @@ module FlatList =
 
     let distinct (list: FlatList<'T>) = list |> System.Collections.Generic.HashSet |> ofSeq
     
-    let distinctBy projection (list:FlatList<'a>) =
-        let builder = builderWithLengthOf list
-        let set = System.Collections.Generic.HashSet<'key>(HashIdentity.Structural)
-
-        for item in list do
-            if set.Add <| projection item then
-                builder.Add item
-        
-        ofBuilder builder
+    let distinctBy projection (list:FlatList<'a>) = Seq.distinctBy projection >> ofSeq
 
     let map2 mapping list1 list2 =
         checkNotDefault (nameof list1) list1
@@ -477,7 +467,7 @@ module FlatList =
         for item in list do
             left.Add <| fst item
             right.Add <| snd item
-        left, right
+        ofBuilder left, ofBuilder right
 
     let unzip3 list =
         let left = builderWithLengthOf list
@@ -487,7 +477,7 @@ module FlatList =
             left.Add <| fst3 item
             middle.Add <| snd3 item
             right.Add <| thd3 item
-        left, middle, right
+        ofBuilder left, ofBuilder middle, ofBuilder right
 
     let windowed windowSize = raiseOrReturn >> Seq.windowed windowSize >> Seq.map ofSeq >> ofSeq
 
@@ -562,8 +552,8 @@ module FlatList =
     let inline averageBy projection ( list:FlatList< ^T > when ^T : (static member (+) : ^T * ^T -> ^T) and ^T : (static member DivideByInt : ^T*int -> ^T) and ^T : (static member Zero : ^T) ) =
         list |> raiseOrReturn |> applyOverFuncs LanguagePrimitives.DivideByInt (map projection >> sum) length
 
-    let maxBy projection (list:FlatList<'a> when 'a : comparison) = list |> raiseOrReturn |> map projection |> reduce max
-    let minBy projection (list:FlatList<'a> when 'a : comparison) = list |> raiseOrReturn |> map projection |> reduce min
+    let maxBy projection (list:FlatList<'a> when 'a : comparison) = list |> raiseOrReturn |> Seq.map projection |> Seq.reduce max
+    let minBy projection (list:FlatList<'a> when 'a : comparison) = list |> raiseOrReturn |> Seq.map projection |> Seq.reduce min
     let max (list:FlatList<'a> when 'a : comparison) = list |> raiseOrReturn |> reduce max
     let min (list:FlatList<'a> when 'a : comparison) = list |> raiseOrReturn |> reduce min
 
@@ -571,10 +561,10 @@ module FlatList =
     let sortDescending (list:FlatList<'a>) = sortWith (flip LanguagePrimitives.GenericComparison) list
     let sortByDescending projection = sortWith (flip (applyOverArgs LanguagePrimitives.GenericComparison projection))
 
-    let compareWith comparer (left:FlatList<'a>) (right:FlatList<'b>) = zip left right |> skipWhile ((uncurry comparer) >> ((=) 0)) |> head |> (uncurry comparer)
+    let compareWith comparer (left:FlatList<'a>) (right:FlatList<'b>) = zip left right |> Seq.skipWhile ((uncurry comparer) >> ((=) 0)) |> Seq.head |> (uncurry comparer)
 
-    let tryExactlyOne = Seq.tryExactlyOne
-    let exactlyOne = Seq.exactlyOne
+    let tryExactlyOne (list:FlatList<_>) = Seq.tryExactlyOne list
+    let exactlyOne (list:FlatList<_>) = Seq.exactlyOne list
 
     let rev = Seq.rev >> ofSeq
     let transpose = Seq.transpose >> Seq.map ofSeq >> ofSeq
