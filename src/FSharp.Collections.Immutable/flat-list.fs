@@ -149,6 +149,8 @@ module FlatList =
             builder.Add <| initializer i
         moveFromBuilder builder
 
+    let zeroCreate<'a> count = init count (fun _ -> Unchecked.defaultof<'a>)
+
     let rec private concatAddLengths (arrs: FlatList<FlatList<_>>) i acc =
         if i >= length arrs then acc
         else concatAddLengths arrs (i+1) (acc + arrs.[i].Length)
@@ -489,6 +491,11 @@ module FlatList =
 
     let windowed windowSize = raiseOrReturn >> Seq.windowed windowSize >> Seq.map ofSeq >> ofSeq
 
+    let fill target targetIndex count value =
+        indexed target
+        |> map (fun (i, a) -> if targetIndex <= i && i < targetIndex + count then value else a)
+        |> ofSeq
+
     ////////// Based on other operations //////////
 
     let take count list = removeRange count (length list - count) list
@@ -567,8 +574,16 @@ module FlatList =
     let compareWith comparer (left:FlatList<'a>) (right:FlatList<'b>) = zip left right |> skipWhile ((uncurry comparer) >> ((=) 0)) |> head |> (uncurry comparer)
 
     let tryExactlyOne = Seq.tryExactlyOne
-    
     let exactlyOne = Seq.exactlyOne
+
+    let rev = Seq.rev >> ofSeq
+    let transpose = Seq.transpose >> Seq.map ofSeq >> ofSeq
+    let permute indexMap = Seq.permute indexMap >> ofSeq
+    let pairwise = Seq.pairwise >> ofSeq
+    let except itemsToExclude = Seq.except itemsToExclude >> ofSeq
+    let splitInto count = Seq.splitInto count >> Seq.map ofSeq >> ofSeq
+    let chunkBySize chunkSize = Seq.chunkBySize chunkSize >> Seq.map ofSeq >> ofSeq
+    let allPairs left = Seq.allPairs left >> ofSeq
 
     //////////
 
