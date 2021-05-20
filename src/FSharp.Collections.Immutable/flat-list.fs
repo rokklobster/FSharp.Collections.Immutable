@@ -550,7 +550,7 @@ module FlatList =
         list |> raiseOrReturn |> applyOverFuncs LanguagePrimitives.DivideByInt sum length
 
     let inline averageBy projection ( list:FlatList< ^T > when ^T : (static member (+) : ^T * ^T -> ^T) and ^T : (static member DivideByInt : ^T*int -> ^T) and ^T : (static member Zero : ^T) ) =
-        list |> raiseOrReturn |> applyOverFuncs LanguagePrimitives.DivideByInt (map projection >> sum) length
+        list |> raiseOrReturn |> applyOverFuncs LanguagePrimitives.DivideByInt ((map projection) >> sum) length
 
     let maxBy projection (list:FlatList<'a> when 'a : comparison) = list |> raiseOrReturn |> Seq.map projection |> Seq.reduce max
     let minBy projection (list:FlatList<'a> when 'a : comparison) = list |> raiseOrReturn |> Seq.map projection |> Seq.reduce min
@@ -566,14 +566,14 @@ module FlatList =
     let tryExactlyOne (list:FlatList<_>) = Seq.tryExactlyOne list
     let exactlyOne (list:FlatList<_>) = Seq.exactlyOne list
 
-    let rev = Seq.rev >> ofSeq
-    let transpose = Seq.transpose >> Seq.map ofSeq >> ofSeq
-    let permute indexMap = Seq.permute indexMap >> ofSeq
-    let pairwise = Seq.pairwise >> ofSeq
-    let except itemsToExclude = Seq.except itemsToExclude >> ofSeq
-    let splitInto count = Seq.splitInto count >> Seq.map ofSeq >> ofSeq
-    let chunkBySize chunkSize = Seq.chunkBySize chunkSize >> Seq.map ofSeq >> ofSeq
-    let allPairs left = Seq.allPairs left >> ofSeq
+    let rev = raiseOrReturn >> Seq.rev >> ofSeq
+    let transpose = raiseOrReturn >> Seq.transpose >> Seq.map ofSeq >> ofSeq
+    let permute indexMap = raiseOrReturn >> Seq.permute indexMap >> ofSeq
+    let pairwise = raiseOrReturn >> Seq.pairwise >> ofSeq
+    let except itemsToExclude = raiseOrReturn >> Seq.except itemsToExclude >> ofSeq
+    let splitInto count = raiseOrReturn >> Seq.splitInto count >> Seq.map ofSeq >> ofSeq
+    let chunkBySize chunkSize = raiseOrReturn >> Seq.chunkBySize chunkSize >> Seq.map ofSeq >> ofSeq
+    let allPairs (left:FlatList<'a>) (right:FlatList<'b>) = Seq.allPairs (raiseOrReturn left) (raiseOrReturn right) |> ofSeq
 
     //////////
 
