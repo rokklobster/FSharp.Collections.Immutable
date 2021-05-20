@@ -553,13 +553,14 @@ module FlatList =
     let inline sumBy projection ( list:FlatList< ^T > when ^T : (static member (+) : ^T * ^T -> ^T) and ^T : (static member Zero : ^T) ) = 
         list |> raiseOrReturn |> map projection |> reduce (+)
 
-    let internal over f g h x = f (g x) (h x)
+    let inline internal applyOverFuncs f g h x = f (g x) (h x)
+    let inline internal applyOverArgs f g x y = f (g x) (g y)
 
     let inline average ( list:FlatList< ^T > when ^T : (static member (+) : ^T * ^T -> ^T) and ^T : (static member DivideByInt : ^T*int -> ^T) and ^T : (static member Zero : ^T) ) =
-        list |> raiseOrReturn |> over LanguagePrimitives.DivideByInt sum length
+        list |> raiseOrReturn |> applyOverFuncs LanguagePrimitives.DivideByInt sum length
 
     let inline averageBy projection ( list:FlatList< ^T > when ^T : (static member (+) : ^T * ^T -> ^T) and ^T : (static member DivideByInt : ^T*int -> ^T) and ^T : (static member Zero : ^T) ) =
-        list |> raiseOrReturn |> over LanguagePrimitives.DivideByInt (map projection >> sum) length
+        list |> raiseOrReturn |> applyOverFuncs LanguagePrimitives.DivideByInt (map projection >> sum) length
 
     let maxBy projection (list:FlatList<'a> when 'a : comparison) = list |> raiseOrReturn |> map projection |> reduce max
     let minBy projection (list:FlatList<'a> when 'a : comparison) = list |> raiseOrReturn |> map projection |> reduce min
@@ -569,12 +570,12 @@ module FlatList =
     let internal flip f a b = f b a
     let internal uncurry f (a, b) = f a b
 
-    let sortBy projection = map projection >> sort
+    let sortBy projection = sortWith (applyOverArgs LanguagePrimitives.GenericComparison projection)
     let sortInPlaceBy = sortBy
     let sortInPlaceWith = sortWith
     let sortInPlace = sort
     let sortDescending (list:FlatList<'a>) = sortWith (flip LanguagePrimitives.GenericComparison) list
-    let sortByDescending projection = map projection >> sortDescending
+    let sortByDescending projection = sortWith (flip (applyOverArgs LanguagePrimitives.GenericComparison projection))
 
     let compareWith comparer (left:FlatList<'a>) (right:FlatList<'b>) = zip left right |> skipWhile ((uncurry comparer) >> ((=) 0)) |> head |> (uncurry comparer)
 
