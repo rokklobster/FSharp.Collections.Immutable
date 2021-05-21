@@ -136,8 +136,6 @@ module FlatList =
     let sortWith comparer list = sortWithComparer (ComparisonIdentity.FromFunction comparer) list
     let sort list = check list; list.Sort()
 
-    let get (list:FlatList<_>) index = list.[index]
-
     ////////// Loop-based //////////
 
     let inline private builderWithLengthOf list = builderWith <| length list
@@ -149,22 +147,20 @@ module FlatList =
             builder.Add <| initializer i
         moveFromBuilder builder
 
+    let initWithValue count value =
+        if count < 0 then invalidArg(nameof count) ErrorStrings.InputMustBeNonNegative
+        let builder = builderWith count
+        for i = 0 to count - 1 do
+            builder.Add value
+        ofBuilder builder
+
     let rec private concatAddLengths (arrs: FlatList<FlatList<_>>) i acc =
         if i >= length arrs then acc
         else concatAddLengths arrs (i+1) (acc + arrs.[i].Length)
 
-    let concat (arrs : FlatList<FlatList<'T>>) = // consider generalizing
-        let result: FlatList<'T>.Builder = builderWith <| concatAddLengths arrs 0 0
-        for i = 0 to length arrs - 1 do
-            result.AddRange(arrs.[i]: FlatList<'T>)
-        moveFromBuilder result
+    let concat (seqs:'a seq seq) = seqs |> Seq.concat |> ofSeq
 
-    let inline map mapping list =
-        check list
-        let builder = builderWithLengthOf list
-        for i = 0 to length list - 1 do
-            builder.Add(mapping list.[i])
-        moveFromBuilder builder
+    let inline map mapping = raiseOrReturn >> Seq.map mapping >> ofSeq
 
     let countBy projection list =
         check list
@@ -191,10 +187,7 @@ module FlatList =
             builder.Add(i, list.[i])
         moveFromBuilder builder
 
-    let inline iter action list =
-        check list
-        for i = 0 to length list - 1 do
-            action list.[i]
+    let inline iter action = raiseOrReturn >> Seq.iter action
 
     let iter2 action list1 list2 =
         checkNotDefault (nameof list1) list1
@@ -212,157 +205,51 @@ module FlatList =
     let map2 mapping list1 list2 =
         checkNotDefault (nameof list1) list1
         checkNotDefault (nameof list2) list2
-        let f = OptimizedClosures.FSharpFunc<_,_,_>.Adapt(mapping)
-        let len1 = list1.Length
-        if len1 <> list2.Length then invalidArg (nameof list2) ErrorStrings.ListsHaveDifferentLengths
-        let res = builderWith len1
-        for i = 0 to len1 - 1 do
-            res.Add <| f.Invoke(list1.[i], list2.[i])
-        moveFromBuilder res
+        Seq.map2 mapping list1 list2 |> ofSeq
 
     let map3 mapping list1 list2 list3 =
         checkNotDefault (nameof list1) list1
         checkNotDefault (nameof list2) list2
         checkNotDefault (nameof list3) list3
-        let f = OptimizedClosures.FSharpFunc<_,_,_,_>.Adapt(mapping)
-        let len1 = list1.Length
-        if not (len1 = list2.Length)
-            then invalidArg (nameof list2) ErrorStrings.ListsHaveDifferentLengths
-        if not (len1 = list3.Length)
-            then invalidArg (nameof list3) ErrorStrings.ListsHaveDifferentLengths
+        Seq.map3 mapping list1 list2 list3 |> ofSeq
 
-        let res = builderWith len1
-        for i = 0 to len1 - 1 do
-            res.Add <| f.Invoke(list1.[i], list2.[i], list3.[i])
-        moveFromBuilder res
     let mapi2 mapping list1 list2 =
         checkNotDefault (nameof list1) list1
         checkNotDefault (nameof list2) list2
-        let f = OptimizedClosures.FSharpFunc<_,_,_,_>.Adapt(mapping)
-        let len1 = list1.Length
-        if len1 <> list2.Length then invalidArg (nameof list2) ErrorStrings.ListsHaveDifferentLengths
-        let res = builderWith len1
-        for i = 0 to len1 - 1 do
-            res.Add <| f.Invoke(i,list1.[i], list2.[i])
-        moveFromBuilder res
+        Seq.mapi2 mapping list1 list2 |> ofSeq
 
-    let iteri action list =
-        check list
-        let f = OptimizedClosures.FSharpFunc<_,_,_>.Adapt(action)
-        let len = list.Length
-        for i = 0 to len - 1 do
-            f.Invoke(i, list.[i])
+    let iteri action = raiseOrReturn >> Seq.iteri action
 
     let iteri2 action list1 list2 =
         checkNotDefault (nameof list1) list1
         checkNotDefault (nameof list2) list2
-        let f = OptimizedClosures.FSharpFunc<_,_,_,_>.Adapt(action)
-        let len1 = list1.Length
-        if len1 <> list2.Length then invalidArg (nameof list2) ErrorStrings.ListsHaveDifferentLengths
-        for i = 0 to len1 - 1 do
-            f.Invoke(i,list1.[i], list2.[i])
+        Seq.iteri2 action list1 list2 
 
-    let mapi mapping list =
-        check list
-        let f = OptimizedClosures.FSharpFunc<_,_,_>.Adapt(mapping)
-        let len = list.Length
-        let res = builderWithLengthOf list
-        for i = 0 to len - 1 do
-            res.Add <| f.Invoke(i,list.[i])
-        moveFromBuilder res
+    let mapi mapping = raiseOrReturn >> Seq.mapi mapping >> ofSeq
 
-    let exists predicate list =
-        check list
-        let len = list.Length
-        let rec loop i = i < len && (predicate list.[i] || loop (i+1))
-        loop 0
+    let exists predicate = raiseOrReturn >> Seq.exists predicate
 
-    let inline contains e list =
-        check list
-        let mutable state = false
-        let mutable i = 0
-        while (not state && i < list.Length) do
-            state <- e = list.[i]
-            i <- i + 1
-        state
+    let inline contains e = raiseOrReturn >> Seq.contains e
 
     let exists2 predicate list1 list2 =
         checkNotDefault (nameof list1) list1
         checkNotDefault (nameof list2) list2
-        let f = OptimizedClosures.FSharpFunc<_,_,_>.Adapt(predicate)
-        let len1 = list1.Length
-        if len1 <> list2.Length then invalidArg (nameof list2) ErrorStrings.ListsHaveDifferentLengths
-        let rec loop i = i < len1 && (f.Invoke(list1.[i], list2.[i]) || loop (i+1))
-        loop 0
+        Seq.exists2 predicate list1 list2
 
-    let forall predicate list =
-        check list
-        let len = list.Length
-        let rec loop i = i >= len || (predicate list.[i] && loop (i+1))
-        loop 0
+    let forall predicate = raiseOrReturn >> Seq.forall predicate
 
     let forall2 predicate list1 list2 =
         checkNotDefault (nameof list1) list1
         checkNotDefault (nameof list2) list2
-        let f = OptimizedClosures.FSharpFunc<_,_,_>.Adapt(predicate)
-        let len1 = list1.Length
-        if len1 <> list2.Length then invalidArg (nameof list2) ErrorStrings.ListsHaveDifferentLengths
-        let rec loop i = i >= len1 || (f.Invoke(list1.[i], list2.[i]) && loop (i+1))
-        loop 0
+        Seq.forall2 predicate list1 list2
 
-    let groupBy projection list =
-        check list
-        let dict = new System.Collections.Generic.Dictionary<'Key,ResizeArray<'T>>(HashIdentity.Structural)
+    let groupBy projection = raiseOrReturn >> Seq.groupBy projection >> Seq.map (fun (k, i) -> k, ofSeq i) >> ofSeq
 
-        // Build the groupings
-        for i = 0 to (list.Length - 1) do
-            let v = list.[i]
-            let key = projection v
-            let ok, prev = dict.TryGetValue(key)
-            if ok then
-                prev.Add(v)
-            else
-                let prev = new ResizeArray<'T>(1)
-                dict.[key] <- prev
-                prev.Add(v)
+    let pick chooser = raiseOrReturn >> Seq.pick chooser
 
-        // Return the list-of-lists.
-        let result = builderWith dict.Count
-        let mutable i = 0
-        for group in dict do
-            result.Add(group.Key, ofSeq group.Value)
-            i <- i + 1
+    let tryPick chooser = raiseOrReturn >> Seq.tryPick chooser
 
-        moveFromBuilder result
-
-    let pick chooser list =
-        check list
-        let rec loop i =
-            if i >= list.Length then
-                indexNotFound()
-            else
-                match chooser list.[i] with
-                | None -> loop(i+1)
-                | Some res -> res
-        loop 0
-
-    let tryPick chooser list =
-        check list
-        let rec loop i =
-            if i >= list.Length then None else
-            match chooser list.[i] with
-            | None -> loop(i+1)
-            | res -> res
-        loop 0
-
-    let choose chooser list =
-        check list
-        let res = builderWith list.Length
-        for i = 0 to list.Length - 1 do
-            match chooser list.[i] with
-            | None -> ()
-            | Some b -> res.Add(b)
-        ofBuilder res
+    let choose chooser = raiseOrReturn >> Seq.choose chooser >> ofSeq
 
     let partition predicate list =
         check list
@@ -373,48 +260,14 @@ module FlatList =
             if predicate x then res1.Add(x) else res2.Add(x)
         ofBuilder res1, ofBuilder res2
 
-    let find predicate list =
-        check list
-        let rec loop i =
-            if i >= list.Length then indexNotFound() else
-            if predicate list.[i] then list.[i]  else loop (i+1)
-        loop 0
-    let tryFind predicate list =
-        check list
-        let rec loop i =
-            if i >= list.Length then None else
-            if predicate list.[i] then Some list.[i]  else loop (i+1)
-        loop 0
-    let findBack predicate list =
-        check list
-        let rec loop i =
-            if i < 0 then indexNotFound() else
-            if predicate list.[i] then list.[i]  else loop (i - 1)
-        loop <| length list - 1
-    let tryFindBack predicate list =
-        check list
-        let rec loop i =
-            if i < 0 then None else
-            if predicate list.[i] then Some list.[i]  else loop (i+1)
-        loop <| length list - 1
-
+    let find predicate = raiseOrReturn >> Seq.find predicate
+    let tryFind predicate = raiseOrReturn >> Seq.tryFind predicate
+    let findBack predicate = raiseOrReturn >> Seq.findBack predicate
+    let tryFindBack predicate = raiseOrReturn >> Seq.tryFindBack predicate
     let findIndex predicate = raiseOrReturn >> Seq.findIndex predicate
-
-    let findIndexBack predicate list =
-        check list
-        let rec loop i =
-            if i < 0 then indexNotFound() else
-            if predicate list.[i] then i  else loop (i - 1)
-        loop <| length list - 1
-
+    let findIndexBack predicate = raiseOrReturn >> Seq.findIndexBack predicate
     let tryFindIndex predicate = raiseOrReturn >> Seq.tryFindIndex predicate
-
-    let tryFindIndexBack predicate list =
-        check list
-        let rec loop i =
-            if i < 0 then None else
-            if predicate list.[i] then Some i  else loop (i - 1)
-        loop <| length list - 1
+    let tryFindIndexBack predicate = raiseOrReturn >> Seq.tryFindIndexBack predicate
     
     let fold folder (state: 'state) = raiseOrReturn >> Seq.fold folder state
     
@@ -482,8 +335,7 @@ module FlatList =
     let windowed windowSize = raiseOrReturn >> Seq.windowed windowSize >> Seq.map ofSeq >> ofSeq
 
     let fill target targetIndex count value =
-        indexed target
-        |> map (fun (i, a) -> if targetIndex <= i && i < targetIndex + count then value else a)
+        mapi (fun i a -> if targetIndex <= i && i < targetIndex + count then value else a) target
         |> ofSeq
 
     ////////// Based on other operations //////////
@@ -520,13 +372,13 @@ module FlatList =
 
     let tryLast list = tryItem (length list - 1) list
 
-    let tail list = removeRange 1 (length list - 1) list
+    let tail list = skip 1 list
 
     let tryTail list = if isEmpty list then None else Some <| tail list
 
-    let create count item = init count <| fun _ -> item // optimize
+    let create = initWithValue
 
-    let replicate count item = create item count
+    let replicate item = item |> flip initWithValue
 
     let collect mapping list = concat <| map mapping list
 
@@ -566,13 +418,13 @@ module FlatList =
     let tryExactlyOne (list:FlatList<_>) = Seq.tryExactlyOne list
     let exactlyOne (list:FlatList<_>) = Seq.exactlyOne list
 
-    let rev = raiseOrReturn >> Seq.rev >> ofSeq
-    let transpose = raiseOrReturn >> Seq.transpose >> Seq.map ofSeq >> ofSeq
-    let permute indexMap = raiseOrReturn >> Seq.permute indexMap >> ofSeq
-    let pairwise = raiseOrReturn >> Seq.pairwise >> ofSeq
-    let except itemsToExclude = raiseOrReturn >> Seq.except itemsToExclude >> ofSeq
-    let splitInto count = raiseOrReturn >> Seq.splitInto count >> Seq.map ofSeq >> ofSeq
-    let chunkBySize chunkSize = raiseOrReturn >> Seq.chunkBySize chunkSize >> Seq.map ofSeq >> ofSeq
+    let rev (list:FlatList<_>) = list |> raiseOrReturn |> Seq.rev |> ofSeq
+    let transpose (list:FlatList<_>) = list |> raiseOrReturn |> Seq.transpose |> Seq.map ofSeq |> ofSeq
+    let permute indexMap (list:FlatList<_>) = list |> raiseOrReturn |> Seq.permute indexMap |> ofSeq
+    let pairwise (list:FlatList<_>) = list |> raiseOrReturn |> Seq.pairwise |> ofSeq
+    let except itemsToExclude (list:FlatList<_>) = list |> raiseOrReturn |> Seq.except itemsToExclude |> ofSeq
+    let splitInto count (list:FlatList<_>) = list |> raiseOrReturn |> Seq.splitInto count |> Seq.map ofSeq |> ofSeq
+    let chunkBySize chunkSize (list:FlatList<_>) = list |> raiseOrReturn |> Seq.chunkBySize chunkSize |> Seq.map ofSeq |> ofSeq
     let allPairs (left:FlatList<'a>) (right:FlatList<'b>) = Seq.allPairs (raiseOrReturn left) (raiseOrReturn right) |> ofSeq
 
     //////////
