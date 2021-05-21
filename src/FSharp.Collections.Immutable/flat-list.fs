@@ -148,7 +148,7 @@ module FlatList =
         moveFromBuilder builder
 
     let initWithValue count value =
-        if count < 0 then invalidArg(nameof count) ErrorStrings.InputMustBeNonNegative
+        if count < 0 then invalidArg (nameof count) ErrorStrings.InputMustBeNonNegative
         let builder = builderWith count
         for i = 0 to count - 1 do
             builder.Add value
@@ -160,20 +160,20 @@ module FlatList =
 
     let concat (seqs:'a seq seq) = seqs |> Seq.concat |> ofSeq
 
-    let inline map mapping = raiseOrReturn >> Seq.map mapping >> ofSeq
+    let map mapping = raiseOrReturn >> Seq.map mapping >> ofSeq
 
     let countBy projection = raiseOrReturn >> Seq.countBy projection >> ofSeq
 
     let indexed list = list |> raiseOrReturn |> Seq.indexed |> ofSeq
 
-    let inline iter action = raiseOrReturn >> Seq.iter action
+    let iter action = raiseOrReturn >> Seq.iter action
 
     let iter2 action list1 list2 =
         checkNotDefault (nameof list1) list1
         checkNotDefault (nameof list2) list2
         Seq.iter2 action list1 list2
 
-    let distinct (list: FlatList<'T>) = list |> System.Collections.Generic.HashSet |> ofSeq
+    let distinct (list: FlatList<'T>) = list |> Seq.distinct |> ofSeq
 
     let distinctBy projection = raiseOrReturn >> Seq.distinctBy projection >> ofSeq
 
@@ -204,7 +204,7 @@ module FlatList =
 
     let exists predicate = raiseOrReturn >> Seq.exists predicate
 
-    let inline contains e = raiseOrReturn >> Seq.contains e
+    let contains e = raiseOrReturn >> Seq.contains e
 
     let exists2 predicate list1 list2 =
         checkNotDefault (nameof list1) list1
