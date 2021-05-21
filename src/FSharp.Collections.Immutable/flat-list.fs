@@ -162,45 +162,20 @@ module FlatList =
 
     let inline map mapping = raiseOrReturn >> Seq.map mapping >> ofSeq
 
-    let countBy projection list =
-        check list
-        // need struct box optimization
-        let dict = new System.Collections.Generic.Dictionary<'Key, int>(HashIdentity.Structural)
+    let countBy projection = raiseOrReturn >> Seq.countBy projection >> ofSeq
 
-        // Build the groupings
-        for v in list do
-            let key = projection v
-            let mutable prev = Unchecked.defaultof<_>
-            if dict.TryGetValue(key, &prev) then dict.[key] <- prev + 1 else dict.[key] <- 1
-
-        let res = builderWith dict.Count
-        let mutable i = 0
-        for group in dict do
-            res.Add(group.Key, group.Value)
-            i <- i + 1
-        moveFromBuilder res
-
-    let indexed list =
-        check list
-        let builder = builderWithLengthOf list
-        for i = 0 to length list - 1 do
-            builder.Add(i, list.[i])
-        moveFromBuilder builder
+    let indexed list = list |> raiseOrReturn |> Seq.indexed |> ofSeq
 
     let inline iter action = raiseOrReturn >> Seq.iter action
 
     let iter2 action list1 list2 =
         checkNotDefault (nameof list1) list1
         checkNotDefault (nameof list2) list2
-        let f = OptimizedClosures.FSharpFunc<'T,'U, unit>.Adapt(action)
-        let len = length list1
-        if len <> length list2 then invalidArg (nameof list2) ErrorStrings.ListsHaveDifferentLengths
-        for i = 0 to len - 1 do
-            f.Invoke(list1.[i], list2.[i])
+        Seq.iter2 action list1 list2
 
     let distinct (list: FlatList<'T>) = list |> System.Collections.Generic.HashSet |> ofSeq
-    
-    let distinctBy projection (list:FlatList<'a>) = Seq.distinctBy projection >> ofSeq
+
+    let distinctBy projection = raiseOrReturn >> Seq.distinctBy projection >> ofSeq
 
     let map2 mapping list1 list2 =
         checkNotDefault (nameof list1) list1
@@ -223,7 +198,7 @@ module FlatList =
     let iteri2 action list1 list2 =
         checkNotDefault (nameof list1) list1
         checkNotDefault (nameof list2) list2
-        Seq.iteri2 action list1 list2 
+        Seq.iteri2 action list1 list2
 
     let mapi mapping = raiseOrReturn >> Seq.mapi mapping >> ofSeq
 
@@ -268,32 +243,32 @@ module FlatList =
     let findIndexBack predicate = raiseOrReturn >> Seq.findIndexBack predicate
     let tryFindIndex predicate = raiseOrReturn >> Seq.tryFindIndex predicate
     let tryFindIndexBack predicate = raiseOrReturn >> Seq.tryFindIndexBack predicate
-    
+
     let fold folder (state: 'state) = raiseOrReturn >> Seq.fold folder state
-    
+
     let scan folder (state: 'state) = raiseOrReturn >> Seq.scan folder state >> ofSeq
-    
+
     let fold2 folder (state: 'state) (left:FlatList<'a>) (right:FlatList<'b>) =
         check left; check right
         Seq.fold2 folder state left right
-    
+
     let foldBack2 folder (left:FlatList<'a>) (right:FlatList<'b>) (state:'state) =
         check left; check right
         Seq.foldBack2 folder left right state
-    
+
     let foldBack folder (list:FlatList<'a>) (state: 'state) =
         check list
         Seq.foldBack folder list state
-    
+
     let scanBack folder (list:FlatList<'a>) (state:'state) =
         check list
         Seq.scanBack folder list state |> ofSeq
 
     let unfold (generator: 'state -> ('a * 'state) option) state =
         Seq.unfold generator state |> ofSeq
-    
+
     let reduce reduction = raiseOrReturn >> Seq.reduce reduction
-    
+
     let reduceBack reduction = raiseOrReturn >> Seq.reduceBack reduction
 
     let mapFold mapping (state:'State) (list:FlatList<'T>) =
@@ -305,11 +280,11 @@ module FlatList =
         check list
         let (i, s) = Seq.mapFoldBack mapping list state
         ofSeq i, s
-    
+
     let zip (left:FlatList<_>) (right:FlatList<_>) =
         check left; check right
         Seq.zip left right |> ofSeq
-    
+
     let zip3 (left:FlatList<_>) (middle:FlatList<_>) (right:FlatList<_>) =
         check left; check middle; check right
         Seq.zip3 left middle right |> ofSeq
@@ -392,10 +367,10 @@ module FlatList =
         f builder
         moveFromBuilder builder
 
-    let inline sum ( list:FlatList< ^T > when ^T : (static member (+) : ^T * ^T -> ^T) and ^T : (static member Zero : ^T) ) = 
+    let inline sum ( list:FlatList< ^T > when ^T : (static member (+) : ^T * ^T -> ^T) and ^T : (static member Zero : ^T) ) =
         list |> raiseOrReturn |> reduce (+)
 
-    let inline sumBy projection ( list:FlatList< ^T > when ^T : (static member (+) : ^T * ^T -> ^T) and ^T : (static member Zero : ^T) ) = 
+    let inline sumBy projection ( list:FlatList< ^T > when ^T : (static member (+) : ^T * ^T -> ^T) and ^T : (static member Zero : ^T) ) =
         list |> raiseOrReturn |> map projection |> reduce (+)
 
     let inline average ( list:FlatList< ^T > when ^T : (static member (+) : ^T * ^T -> ^T) and ^T : (static member DivideByInt : ^T*int -> ^T) and ^T : (static member Zero : ^T) ) =
