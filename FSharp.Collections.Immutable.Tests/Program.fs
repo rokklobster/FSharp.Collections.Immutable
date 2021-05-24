@@ -1,5 +1,5 @@
 open Fuchu
 
 module Program =
-    let [<EntryPoint>] main = defaultMainThisAssembly
+    let [<EntryPoint>] main args = defaultMainThisAssembly args
 
