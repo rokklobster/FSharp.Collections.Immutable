@@ -224,10 +224,10 @@ module FlatList =
     [<CompiledName("Indexed")>]
     let indexed list = list |> raiseOrReturn |> Seq.indexed |> ofSeq
 
-    [<CompiledName("Iter")>]
+    [<CompiledName("Iterate")>]
     let iter action = raiseOrReturn >> Seq.iter action
 
-    [<CompiledName("Iter2")>]
+    [<CompiledName("Iterate2")>]
     let iter2 action list1 list2 =
         checkNotDefault (nameof list1) list1
         checkNotDefault (nameof list2) list2
@@ -253,22 +253,22 @@ module FlatList =
         Seq.map3 mapping list1 list2 list3 |> ofSeq
 
 
-    [<CompiledName("MapI2")>]
+    [<CompiledName("MapIndexed2")>]
     let mapi2 mapping list1 list2 =
         checkNotDefault (nameof list1) list1
         checkNotDefault (nameof list2) list2
         Seq.mapi2 mapping list1 list2 |> ofSeq
 
-    [<CompiledName("LastIndex")>]
+    [<CompiledName("IterateIndexed")>]
     let iteri action = raiseOrReturn >> Seq.iteri action
 
-    [<CompiledName("IterI2")>]
+    [<CompiledName("IterateIndexed2")>]
     let iteri2 action list1 list2 =
         checkNotDefault (nameof list1) list1
         checkNotDefault (nameof list2) list2
         Seq.iteri2 action list1 list2
 
-    [<CompiledName("MapI")>]
+    [<CompiledName("MapIndexed")>]
     let mapi mapping = raiseOrReturn >> Seq.mapi mapping >> ofSeq
 
     [<CompiledName("Exists")>]
@@ -314,12 +314,11 @@ module FlatList =
             if predicate x then res1.Add(x) else res2.Add(x)
         ofBuilder res1, ofBuilder res2
 
-    [<CompiledName("IterList")>]
-    let rec iterList (list:FlatList<_>) index predicate indexPredicate indexTransform =
+    let rec private tryFindWithCustomStride (list:FlatList<_>) index predicate indexPredicate indexTransform =
         if indexPredicate index then
             if predicate list.[index] then
                 Some (index, list.[index])
-            else iterList list (indexTransform index) predicate indexPredicate indexTransform
+            else tryFindWithCustomStride list (indexTransform index) predicate indexPredicate indexTransform
         else None
 
     [<CompiledName("TryFindItem")>]
@@ -327,12 +326,12 @@ module FlatList =
         check list
         let startIndex = if direction then 0 else length list - 1
         let indexPredicate = if direction then ((>) (length list)) else ((<=) 0)
-        let transform = if direction then ((+) 1) else ((-) 1)
-        iterList list startIndex predicate indexPredicate transform
+        let transform = if direction then ((+) 1) else ((+) -1) // because section is not available
+        tryFindWithCustomStride list startIndex predicate indexPredicate transform
 
     [<CompiledName("Find")>]
     let find predicate = raiseOrReturn >> Seq.find predicate
-    [<CompiledName("tryFind")>]
+    [<CompiledName("TryFind")>]
     let tryFind predicate = raiseOrReturn >> Seq.tryFind predicate
     [<CompiledName("FindBack")>]
     let findBack predicate = raiseOrReturn >> Seq.findBack predicate
@@ -553,7 +552,7 @@ module FlatList =
     [<CompiledName("ExactlyOne")>]
     let exactlyOne (list:FlatList<_>) = Seq.exactlyOne list
 
-    [<CompiledName("Rev")>]
+    [<CompiledName("Reverse")>]
     let rev (list:FlatList<_>) = list |> raiseOrReturn |> Seq.rev |> ofSeq
     [<CompiledName("Transpose")>]
     let transpose (list:FlatList<_>) = list |> raiseOrReturn |> Seq.transpose |> Seq.map ofSeq |> ofSeq
