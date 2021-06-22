@@ -39,7 +39,7 @@ module FlatList =
     let inline ofList (source: _ list) = FlatListFactory.CreateRange source
 
     [<CompiledName("ToSeq")>]
-    let inline toSeq (flatList: FlatList<_>) = flatList :> seq<_>
+    let inline toSeq (flatList: FlatList<_>) = check flatList; flatList :> seq<_>
     [<CompiledName("ToArray")>]
     let inline toArray (list : FlatList<_>) = check list; Seq.toArray list
     [<CompiledName("ToList")>]
