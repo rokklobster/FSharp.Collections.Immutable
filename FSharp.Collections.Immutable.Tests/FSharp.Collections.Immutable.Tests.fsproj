@@ -8,15 +8,15 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Fuchu" Version="1.1.0" />
-        <PackageReference Include="NUnit" Version="3.12.0" />
+        <PackageReference Include="FsUnit" Version="4.0.4" />
+        <PackageReference Include="NUnit" Version="3.13.2" />
         <PackageReference Include="NUnit3TestAdapter" Version="3.16.1" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.5.0" />
     </ItemGroup>
 
     <ItemGroup>
+        <Compile Include="test-helpers.fs" />
         <Compile Include="flat-list-tests.fs" />
-        <Compile Include="Program.fs" />
     </ItemGroup>
 
     <ItemGroup>
