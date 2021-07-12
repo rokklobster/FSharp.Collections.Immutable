@@ -11,7 +11,7 @@ module FlatListTestsUtils =
     let list9to0 () = FlatList.init 10 ((-) 9)
     let listOf count list =
         let builder = FlatList.builderWith count
-        for i = 0 to count do
+        for i = 1 to count do
             builder.Add list
         FlatList.ofBuilder builder
     let throwsOnlyOnNullLists category func = [
@@ -137,6 +137,16 @@ type FlatListFixture () =
         (FlatList.distinct |> appliedTo ([1;1;1;1] |> FlatList.ofList) |> producesEquivalentOf [1]) |> testCase "duplicates list" (nameof(FlatList.distinct))
         (FlatList.distinctBy (fun x -> x % 2 = 0) |> appliedToFunc emptyList |> producesEquivalentOf []) |> testCase "empty list" (nameof(FlatList.distinctBy))
         (FlatList.distinctBy (fun x -> x % 2 = 0) |> appliedToFunc list0to9 |> producesEquivalentOf [0;1]) |> testCase "0 to 9 list, oddity check" (nameof(FlatList.distinctBy))
+        (FlatList.map2 (+) |> withSecondArgFrom emptyList |> appliedToFunc emptyList |> producesEquivalentOf []) |> testCase "empty list - both" (nameof(FlatList.map2))
+        (FlatList.map2 (+) |> withSecondArgFrom emptyList |> appliedToFunc list0to9 |> producesEquivalentOf []) |> testCase "empty list - 1st" (nameof(FlatList.map2))
+        (FlatList.map2 (+) |> withSecondArgFrom list0to9 |> appliedToFunc emptyList |> producesEquivalentOf []) |> testCase "empty list - 2nd" (nameof(FlatList.map2))
+        (FlatList.map2 (+) |> withSecondArgFrom list0to9 |> appliedToFunc list9to0 |> producesEquivalentOf (listOf 10 9)) |> testCase "non-empty" (nameof(FlatList.map2))
+        (FlatList.exists ((>) 5) |> appliedToFunc emptyList |> produces false) |> testCase "empty list" (nameof(FlatList.exists))
+        (FlatList.exists ((>) 5) |> appliedToFunc list0to9 |> produces true) |> testCase "non-empty list" (nameof(FlatList.exists))
+        (FlatList.exists ((>) -1) |> appliedToFunc list0to9 |> produces false) |> testCase "non-empty list, invalid condition" (nameof(FlatList.exists))
+        (FlatList.contains 5 |> appliedToFunc emptyList |> produces false) |> testCase "empty list" (nameof(FlatList.contains))
+        (FlatList.contains 5 |> appliedToFunc list0to9 |> produces true) |> testCase "non-empty list" (nameof(FlatList.contains))
+        (FlatList.contains -1 |> appliedToFunc list0to9 |> produces false) |> testCase "non-empty list, invalid element" (nameof(FlatList.contains))
     ]
 
     [<TestCaseSource(nameof(FlatListFixture.validationCases))>]
