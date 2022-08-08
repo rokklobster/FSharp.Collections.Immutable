@@ -4,6 +4,7 @@ namespace global
 namespace FSharp.Collections.Immutable
 
 open FSharp.Collections.Immutable
+open System.Linq
 
 #endif
 
@@ -20,7 +21,7 @@ module FlatList =
         if list.IsDefault then invalidArg argName "Uninstantiated ImmutableArray/FlatList"
     let inline internal check (list : FlatList<'T>) = checkNotDefault (nameof list) list
     let inline internal checkEmpty (list : FlatList<_>) = check list; if list.Length = 0 then invalidArg (nameof list) "Source is empty" else ()
-    let inline internal raiseOrReturn list = check list; list
+    let inline internal checkAndReturn list = check list; list
 
     ////////// Creating //////////
 
@@ -41,9 +42,9 @@ module FlatList =
     [<CompiledName("ToSeq")>]
     let inline toSeq (flatList: FlatList<_>) = flatList :> seq<_>
     [<CompiledName("ToArray")>]
-    let inline toArray (list : FlatList<_>) = check list; Seq.toArray list
+    let inline toArray (list : FlatList<_>) = ImmutableArrayExtensions.ToArray list
     [<CompiledName("ToList")>]
-    let inline toList list = check list; Seq.toList list
+    let inline toList list = list |> checkAndReturn |> Seq.toList
 
     ////////// Building //////////
 
@@ -149,14 +150,11 @@ module FlatList =
 
     /// Removes all the elements that do not match the conditions defined by the specified predicate.
     [<CompiledName("Filter")>]
-    let filter predicate list: FlatList<_> =
-        check list
-        System.Predicate(not << predicate)
-        |> list.RemoveAll
+    let filter predicate list = ImmutableArrayExtensions.Where (list, predicate)
 
     /// Removes all the elements that do not match the conditions defined by the specified predicate.
     [<CompiledName("Where")>]
-    let where predicate list = filter predicate list
+    let where predicate list = ImmutableArrayExtensions.Where (list, predicate)
 
     /// Removes a range of elements from the list.
     [<CompiledName("RemoveRange")>]
@@ -204,28 +202,24 @@ module FlatList =
             builder.Add value
         ofBuilder builder
 
-    let rec private concatAddLengths (arrs: FlatList<FlatList<_>>) i acc =
-        if i >= length arrs then acc
-        else concatAddLengths arrs (i+1) (acc + arrs.[i].Length)
-
     [<CompiledName("Concat")>]
     let concat (seqs:FlatList<FlatList<_>>) =
-        let builder = builderWith <| concatAddLengths seqs 0 0
+        let builder = seqs |> Seq.map length |> Seq.sum |> builderWith
         for seq in seqs do
             builder.AddRange seq
         ofBuilder builder
 
     [<CompiledName("Map")>]
-    let map mapping = raiseOrReturn >> Seq.map mapping >> ofSeq
+    let map<'a, 'b> (mapping: 'a -> 'b) list = ImmutableArrayExtensions.Select (list, System.Func<'a, 'b> mapping)
 
     [<CompiledName("CountBy")>]
-    let countBy projection = raiseOrReturn >> Seq.countBy projection >> ofSeq
+    let countBy projection = checkAndReturn >> Seq.countBy projection
 
     [<CompiledName("Indexed")>]
-    let indexed list = list |> raiseOrReturn |> Seq.indexed |> ofSeq
+    let indexed list = list |> checkAndReturn |> Seq.indexed
 
     [<CompiledName("Iterate")>]
-    let iter action = raiseOrReturn >> Seq.iter action
+    let iter action = checkAndReturn >> Seq.iter action
 
     [<CompiledName("Iterate2")>]
     let iter2 action list1 list2 =
@@ -234,33 +228,33 @@ module FlatList =
         Seq.iter2 action list1 list2
 
     [<CompiledName("Distinct")>]
-    let distinct (list: FlatList<'T>) = list |> Seq.distinct |> ofSeq
+    let distinct (list: FlatList<'T>) = list |> Seq.distinct
 
     [<CompiledName("DistinctBy")>]
-    let distinctBy projection = raiseOrReturn >> Seq.distinctBy projection >> ofSeq
+    let distinctBy projection = checkAndReturn >> Seq.distinctBy projection
 
     [<CompiledName("Map2")>]
     let map2 mapping list1 list2 =
         checkNotDefault (nameof list1) list1
         checkNotDefault (nameof list2) list2
-        Seq.map2 mapping list1 list2 |> ofSeq
+        Seq.map2 mapping list1 list2
 
     [<CompiledName("Map3")>]
     let map3 mapping list1 list2 list3 =
         checkNotDefault (nameof list1) list1
         checkNotDefault (nameof list2) list2
         checkNotDefault (nameof list3) list3
-        Seq.map3 mapping list1 list2 list3 |> ofSeq
+        Seq.map3 mapping list1 list2 list3
 
 
     [<CompiledName("MapIndexed2")>]
     let mapi2 mapping list1 list2 =
         checkNotDefault (nameof list1) list1
         checkNotDefault (nameof list2) list2
-        Seq.mapi2 mapping list1 list2 |> ofSeq
+        Seq.mapi2 mapping list1 list2
 
     [<CompiledName("IterateIndexed")>]
-    let iteri action = raiseOrReturn >> Seq.iteri action
+    let iteri action = checkAndReturn >> Seq.iteri action
 
     [<CompiledName("IterateIndexed2")>]
     let iteri2 action list1 list2 =
@@ -269,13 +263,13 @@ module FlatList =
         Seq.iteri2 action list1 list2
 
     [<CompiledName("MapIndexed")>]
-    let mapi mapping = raiseOrReturn >> Seq.mapi mapping >> ofSeq
+    let mapi mapping = checkAndReturn >> Seq.mapi mapping
 
     [<CompiledName("Exists")>]
-    let exists predicate = raiseOrReturn >> Seq.exists predicate
+    let exists predicate list = ImmutableArrayExtensions.Any (list, System.Func<'a, bool> predicate)
 
     [<CompiledName("Contains")>]
-    let contains e = raiseOrReturn >> Seq.contains e
+    let contains e = checkAndReturn >> Seq.contains e
 
     [<CompiledName("Exists2")>]
     let exists2 predicate list1 list2 =
@@ -284,7 +278,7 @@ module FlatList =
         Seq.exists2 predicate list1 list2
 
     [<CompiledName("ForAll")>]
-    let forall predicate = raiseOrReturn >> Seq.forall predicate
+    let forall predicate list = ImmutableArrayExtensions.All (list, System.Func<'a, bool> predicate)
 
     [<CompiledName("ForAll2")>]
     let forall2 predicate list1 list2 =
@@ -293,16 +287,16 @@ module FlatList =
         Seq.forall2 predicate list1 list2
 
     [<CompiledName("GroupBy")>]
-    let groupBy projection = raiseOrReturn >> Seq.groupBy projection >> Seq.map (fun (k, i) -> k, ofSeq i) >> ofSeq
+    let groupBy projection = checkAndReturn >> Seq.groupBy projection
 
     [<CompiledName("Pick")>]
-    let pick chooser = raiseOrReturn >> Seq.pick chooser
+    let pick chooser = checkAndReturn >> Seq.pick chooser
 
     [<CompiledName("TryPick")>]
-    let tryPick chooser = raiseOrReturn >> Seq.tryPick chooser
+    let tryPick chooser = checkAndReturn >> Seq.tryPick chooser
 
     [<CompiledName("Choose")>]
-    let choose chooser = raiseOrReturn >> Seq.choose chooser >> ofSeq
+    let choose chooser = checkAndReturn >> Seq.choose chooser
 
     [<CompiledName("Partition")>]
     let partition predicate list =
@@ -330,27 +324,27 @@ module FlatList =
         tryFindWithCustomStride list startIndex predicate indexPredicate transform
 
     [<CompiledName("Find")>]
-    let find predicate = raiseOrReturn >> Seq.find predicate
+    let find predicate = checkAndReturn >> Seq.find predicate
     [<CompiledName("TryFind")>]
-    let tryFind predicate = raiseOrReturn >> Seq.tryFind predicate
+    let tryFind predicate = checkAndReturn >> Seq.tryFind predicate
     [<CompiledName("FindBack")>]
-    let findBack predicate = raiseOrReturn >> Seq.findBack predicate
+    let findBack predicate = checkAndReturn >> Seq.findBack predicate
     [<CompiledName("TryFindBack")>]
-    let tryFindBack predicate = raiseOrReturn >> Seq.tryFindBack predicate
+    let tryFindBack predicate = checkAndReturn >> Seq.tryFindBack predicate
     [<CompiledName("FindIndex")>]
-    let findIndex predicate = raiseOrReturn >> Seq.findIndex predicate
+    let findIndex predicate = checkAndReturn >> Seq.findIndex predicate
     [<CompiledName("FindIndexBack")>]
-    let findIndexBack predicate = raiseOrReturn >> Seq.findIndexBack predicate
+    let findIndexBack predicate = checkAndReturn >> Seq.findIndexBack predicate
     [<CompiledName("TryFindIndex")>]
-    let tryFindIndex predicate = raiseOrReturn >> Seq.tryFindIndex predicate
+    let tryFindIndex predicate = checkAndReturn >> Seq.tryFindIndex predicate
     [<CompiledName("TryFindIndexBack")>]
-    let tryFindIndexBack predicate = raiseOrReturn >> Seq.tryFindIndexBack predicate
+    let tryFindIndexBack predicate = checkAndReturn >> Seq.tryFindIndexBack predicate
 
     [<CompiledName("Fold")>]
-    let fold folder (state: 'state) = raiseOrReturn >> Seq.fold folder state
+    let fold folder (state: 'state) = checkAndReturn >> Seq.fold folder state
 
     [<CompiledName("Scan")>]
-    let scan folder (state: 'state) = raiseOrReturn >> Seq.scan folder state >> ofSeq
+    let scan folder (state: 'state) = checkAndReturn >> Seq.scan folder state
 
     [<CompiledName("Fold2")>]
     let fold2 folder (state: 'state) (left:FlatList<'a>) (right:FlatList<'b>) =
@@ -370,39 +364,37 @@ module FlatList =
     [<CompiledName("ScanBack")>]
     let scanBack folder (list:FlatList<'a>) (state:'state) =
         check list
-        Seq.scanBack folder list state |> ofSeq
+        Seq.scanBack folder list state
 
     [<CompiledName("Unfold")>]
     let unfold (generator: 'state -> ('a * 'state) option) state =
-        Seq.unfold generator state |> ofSeq
+        Seq.unfold generator state
 
     [<CompiledName("Reduce")>]
-    let reduce reduction = raiseOrReturn >> Seq.reduce reduction
+    let reduce reduction = checkAndReturn >> Seq.reduce reduction
 
     [<CompiledName("ReduceBack")>]
-    let reduceBack reduction = raiseOrReturn >> Seq.reduceBack reduction
+    let reduceBack reduction = checkAndReturn >> Seq.reduceBack reduction
 
     [<CompiledName("MapFold")>]
     let mapFold mapping (state:'State) (list:FlatList<'T>) =
         check list
-        let (items, s) = Seq.mapFold mapping state list
-        ofSeq items, s
+        Seq.mapFold mapping state list
 
     [<CompiledName("MapFoldBack")>]
     let mapFoldBack mapping (list:FlatList<'T>) (state:'State) =
         check list
-        let (i, s) = Seq.mapFoldBack mapping list state
-        ofSeq i, s
+        Seq.mapFoldBack mapping list state
 
     [<CompiledName("Zip")>]
     let zip (left:FlatList<_>) (right:FlatList<_>) =
         check left; check right
-        Seq.zip left right |> ofSeq
+        Seq.zip left right
 
     [<CompiledName("Zip3")>]
     let zip3 (left:FlatList<_>) (middle:FlatList<_>) (right:FlatList<_>) =
         check left; check middle; check right
-        Seq.zip3 left middle right |> ofSeq
+        Seq.zip3 left middle right
 
     [<CompiledName("Unzip")>]
     let unzip list =
@@ -425,7 +417,7 @@ module FlatList =
         ofBuilder left, ofBuilder middle, ofBuilder right
 
     [<CompiledName("Windowed")>]
-    let windowed windowSize = raiseOrReturn >> Seq.windowed windowSize >> Seq.map ofSeq >> ofSeq
+    let windowed windowSize = checkAndReturn >> Seq.windowed windowSize
 
     [<CompiledName("Fill")>]
     let fill target targetIndex count value =
@@ -491,35 +483,24 @@ module FlatList =
     let replicate item = item |> flip initWithValue
 
     [<CompiledName("Collect")>]
-    let collect mapping list = concat <| map mapping list
-
-    [<CompiledName("Build")>]
-    let inline build f =
-        let builder = builder()
-        f builder
-        moveFromBuilder builder
-
-    [<CompiledName("Update")>]
-    let inline update f list =
-        let builder = toBuilder list
-        f builder
-        moveFromBuilder builder
+    let collect mapping list =
+        ImmutableArrayExtensions.SelectMany (list, System.Func<'a, 'a seq> mapping, System.Func<'a,'a,'a> (fun _ -> id))
 
     [<CompiledName("Sum")>]
     let inline sum ( list:FlatList< ^T > when ^T : (static member (+) : ^T * ^T -> ^T) and ^T : (static member Zero : ^T) ) =
-        list |> raiseOrReturn |> reduce (+)
+        list |> checkAndReturn |> reduce (+)
 
     [<CompiledName("SumBy")>]
     let inline sumBy projection ( list:FlatList< ^T > when ^T : (static member (+) : ^T * ^T -> ^T) and ^T : (static member Zero : ^T) ) =
-        list |> raiseOrReturn |> map projection |> reduce (+)
+        list |> checkAndReturn |> map projection |> Seq.sum
 
     [<CompiledName("Average")>]
     let inline average ( list:FlatList< ^T > when ^T : (static member (+) : ^T * ^T -> ^T) and ^T : (static member DivideByInt : ^T*int -> ^T) and ^T : (static member Zero : ^T) ) =
-        list |> raiseOrReturn |> applyOverFuncs LanguagePrimitives.DivideByInt sum length
+        list |> checkAndReturn |> applyOverFuncs LanguagePrimitives.DivideByInt sum length
 
     [<CompiledName("AverageBy")>]
     let inline averageBy projection ( list:FlatList< ^T > when ^T : (static member (+) : ^T * ^T -> ^T) and ^T : (static member DivideByInt : ^T*int -> ^T) and ^T : (static member Zero : ^T) ) =
-        list |> raiseOrReturn |> applyOverFuncs LanguagePrimitives.DivideByInt ((map projection) >> sum) length
+        list |> checkAndReturn |> applyOverFuncs LanguagePrimitives.DivideByInt ((map projection) >> Seq.sum) length
 
     let private minMaxReduction projection comparison a b =
         let pa = projection a
@@ -527,15 +508,15 @@ module FlatList =
         if comparison pa pb then a else b
 
     [<CompiledName("MaxBy")>]
-    let maxBy projection (list:FlatList<'a>) = list |> raiseOrReturn |> reduce (minMaxReduction projection (>))
+    let maxBy projection (list:FlatList<'a>) = list |> checkAndReturn |> reduce (minMaxReduction projection (>))
 
     [<CompiledName("MinBy")>]
-    let minBy projection (list:FlatList<'a> when 'a : comparison) = list |> raiseOrReturn |> reduce (minMaxReduction projection (<))
+    let minBy projection (list:FlatList<'a> when 'a : comparison) = list |> checkAndReturn |> reduce (minMaxReduction projection (<))
 
     [<CompiledName("Max")>]
-    let max (list:FlatList<'a> when 'a : comparison) = list |> raiseOrReturn |> reduce max
+    let max (list:FlatList<'a> when 'a : comparison) = list |> checkAndReturn |> Seq.max
     [<CompiledName("Min")>]
-    let min (list:FlatList<'a> when 'a : comparison) = list |> raiseOrReturn |> reduce min
+    let min (list:FlatList<'a> when 'a : comparison) = list |> checkAndReturn |> Seq.min
 
     [<CompiledName("SortBy")>]
     let sortBy projection = sortWith (applyOverArgs LanguagePrimitives.GenericComparison projection)
@@ -553,21 +534,21 @@ module FlatList =
     let exactlyOne (list:FlatList<_>) = Seq.exactlyOne list
 
     [<CompiledName("Reverse")>]
-    let rev (list:FlatList<_>) = list |> raiseOrReturn |> Seq.rev |> ofSeq
+    let rev (list:FlatList<_>) = list |> checkAndReturn |> Seq.rev
     [<CompiledName("Transpose")>]
-    let transpose (list:FlatList<_>) = list |> raiseOrReturn |> Seq.transpose |> Seq.map ofSeq |> ofSeq
+    let transpose (list:FlatList<_>) = list |> checkAndReturn |> Seq.transpose
     [<CompiledName("Permute")>]
-    let permute indexMap (list:FlatList<_>) = list |> raiseOrReturn |> Seq.permute indexMap |> ofSeq
+    let permute indexMap (list:FlatList<_>) = list |> checkAndReturn |> Seq.permute indexMap
     [<CompiledName("Pairwise")>]
-    let pairwise (list:FlatList<_>) = list |> raiseOrReturn |> Seq.pairwise |> ofSeq
+    let pairwise (list:FlatList<_>) = list |> checkAndReturn |> Seq.pairwise
     [<CompiledName("Except")>]
-    let except itemsToExclude (list:FlatList<_>) = list |> raiseOrReturn |> Seq.except itemsToExclude |> ofSeq
+    let except itemsToExclude (list:FlatList<_>) = list |> checkAndReturn |> Seq.except itemsToExclude
     [<CompiledName("SplitInto")>]
-    let splitInto count (list:FlatList<_>) = list |> raiseOrReturn |> Seq.splitInto count |> Seq.map ofSeq |> ofSeq
+    let splitInto count (list:FlatList<_>) = list |> checkAndReturn |> Seq.splitInto count
     [<CompiledName("ChunkBySize")>]
-    let chunkBySize chunkSize (list:FlatList<_>) = list |> raiseOrReturn |> Seq.chunkBySize chunkSize |> Seq.map ofSeq |> ofSeq
+    let chunkBySize chunkSize (list:FlatList<_>) = list |> checkAndReturn |> Seq.chunkBySize chunkSize
     [<CompiledName("AllPairs")>]
-    let allPairs (left:FlatList<'a>) (right:FlatList<'b>) = Seq.allPairs (raiseOrReturn left) (raiseOrReturn right) |> ofSeq
+    let allPairs (left:FlatList<'a>) (right:FlatList<'b>) = Seq.allPairs (checkAndReturn left) (checkAndReturn right)
 
     //////////
 
